@@ -6,7 +6,8 @@ import { randomUUID } from 'node:crypto';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
-const DATA_DIR = join(ROOT, '.data');
+const IS_VERCEL = Boolean(process.env.VERCEL);
+const DATA_DIR = IS_VERCEL ? '/tmp/whatsapp-agentphone' : join(ROOT, '.data');
 const STORE_FILE = join(DATA_DIR, 'store.json');
 const PORT = Number(process.env.PORT || 4173);
 const API_BASE = (process.env.AGENTPHONE_BASE_URL || 'https://api.agentphone.ai').replace(/\/$/, '');
@@ -122,7 +123,7 @@ async function serveStatic(req, res, pathname) {
 
 await loadStore();
 
-const server = http.createServer(async (req, res) => {
+async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const p = url.pathname;
   try {
@@ -221,6 +222,13 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     json(res, error.status || 500, { error: error.message, details: error.data });
   }
-});
+}
 
-server.listen(PORT, () => console.log(`WhatsApp console running at http://localhost:${PORT}${demoMode ? ' (demo mode)' : ''}`));
+export default handler;
+
+// Vercel owns the HTTP listener. Start one only when this file is run directly.
+if (!IS_VERCEL && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  http.createServer(handler).listen(PORT, () => {
+    console.log(`WhatsApp console running at http://localhost:${PORT}${demoMode ? ' (demo mode)' : ''}`);
+  });
+}

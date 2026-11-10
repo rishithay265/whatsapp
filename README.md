@@ -12,6 +12,18 @@ npm start
 
 Open `http://localhost:4173`. If `AGENTPHONE_API_KEY` is missing or still contains `replace_me`, the app starts in demo mode with seeded conversations and simulated replies.
 
+## Deploy on Vercel
+
+The root `server.mjs` exports the request handler Vercel expects. It starts a local HTTP listener only when run with `npm start`.
+
+Add these values in **Vercel Project Settings → Environment Variables** instead of committing them:
+
+- `AGENTPHONE_API_KEY`
+- `AGENTPHONE_BASE_URL` (optional; defaults to `https://api.agentphone.ai`)
+- `AGENTPHONE_WEBHOOK_SECRET`
+
+Vercel's function filesystem is temporary. The built-in JSON store is suitable only for the demo; production conversation history and cross-instance real-time delivery need shared storage and pub/sub. AgentPhone remains the delivery system of record.
+
 ## Connect AgentPhone
 
 1. Complete Meta Embedded Signup from the AgentPhone dashboard and note your connected WhatsApp number.

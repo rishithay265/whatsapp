@@ -27,6 +27,14 @@ const seed = {
   templates: []
 };
 
+const starterTemplates = [
+  { name: 'order_confirmation', language: 'en_US', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}, your order {{2}} has been confirmed. We will notify you when it ships.', example: { body_text: [['Rishitha', 'ORD-1048']] } }] },
+  { name: 'appointment_reminder', language: 'en_US', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}, this is a reminder for your appointment on {{2}} at {{3}}. Reply to reschedule.', example: { body_text: [['Rishitha', '12 November', '3:30 PM']] } }] },
+  { name: 'payment_confirmation', language: 'en_US', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}, we received your payment of {{2}} for reference {{3}}. Thank you.', example: { body_text: [['Rishitha', '₹1,250', 'PAY-2048']] } }] },
+  { name: 'support_follow_up', language: 'en_US', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}, we are following up on support request {{2}}. Reply here if you still need help.', example: { body_text: [['Rishitha', 'SUP-3102']] } }] },
+  { name: 'welcome_updates', language: 'en_US', category: 'MARKETING', components: [{ type: 'BODY', text: 'Hi {{1}}, welcome to {{2}}. We will send you relevant news and offers here. Reply STOP to opt out.', example: { body_text: [['Rishitha', 'Your Business']] } }] }
+];
+
 let store;
 async function loadStore() {
   await mkdir(DATA_DIR, { recursive: true });
@@ -223,6 +231,24 @@ async function handler(req, res) {
       const connectionId = url.searchParams.get('connection_id');
       if (!demoMode && connectionId) return json(res, 200, await agentphone(`/integrations/whatsapp/${encodeURIComponent(connectionId)}/templates`));
       return json(res, 200, store.templates);
+    }
+    if (p === '/api/templates/starter-pack' && req.method === 'GET') {
+      return json(res, 200, starterTemplates);
+    }
+    if (p === '/api/templates/starter-pack' && req.method === 'POST') {
+      if (demoMode) return json(res, 409, { error: 'Connect AgentPhone and add AGENTPHONE_API_KEY before submitting templates.' });
+      const input = await body(req);
+      if (!input.connection_id) return json(res, 400, { error: 'No WhatsApp connection is available.' });
+      const results = [];
+      for (const template of starterTemplates) {
+        try {
+          const created = await agentphone(`/integrations/whatsapp/${encodeURIComponent(input.connection_id)}/templates`, { method: 'POST', body: JSON.stringify(template) });
+          results.push({ name: template.name, ok: true, template: created });
+        } catch (error) {
+          results.push({ name: template.name, ok: false, error: error.message, status: error.status });
+        }
+      }
+      return json(res, results.some(result => result.ok) ? 201 : 422, { results });
     }
     if (p === '/api/templates' && req.method === 'POST') {
       const input = await body(req);

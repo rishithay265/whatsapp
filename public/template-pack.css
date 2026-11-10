@@ -1,0 +1,33 @@
+.template-card.starter {
+  border-style: dashed;
+}
+
+.status.draft {
+  background: #eef1ef;
+  color: #5a6864;
+}
+
+.page-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.page-title-row p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 7px 0 0;
+}
+
+.section-label {
+  margin: 26px 0 8px;
+  color: #667570;
+  font: 650 12px Manrope, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .page-title-row { flex-direction: column; }
+}

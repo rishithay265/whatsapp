@@ -3,6 +3,13 @@ const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const esc = (v = '') => String(v).replace(/[&<>'"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[c]));
 
 const state = { conversations: [], messages: {}, templates: [], selectedId: null, filter: 'all', search: '', connection: {}, config: {}, replyTo: null, attachment: null };
+const starterTemplates = [
+  { name:'order_confirmation', category:'UTILITY', body:'Hi {{1}}, your order {{2}} has been confirmed. We will notify you when it ships.' },
+  { name:'appointment_reminder', category:'UTILITY', body:'Hi {{1}}, this is a reminder for your appointment on {{2}} at {{3}}. Reply to reschedule.' },
+  { name:'payment_confirmation', category:'UTILITY', body:'Hi {{1}}, we received your payment of {{2}} for reference {{3}}. Thank you.' },
+  { name:'support_follow_up', category:'UTILITY', body:'Hi {{1}}, we are following up on support request {{2}}. Reply here if you still need help.' },
+  { name:'welcome_updates', category:'MARKETING', body:'Hi {{1}}, welcome to {{2}}. We will send you relevant news and offers here. Reply STOP to opt out.' }
+];
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
@@ -108,11 +115,26 @@ function showTemplates() {
 function newChat() { modal('Add WhatsApp contact','Use the full international number with its country code. The contact will open as a blank conversation.',`<div class="field"><label>Contact name</label><input name="name" required maxlength="80" autocomplete="name" placeholder="Customer name"></div><div class="field"><label>WhatsApp number</label><input name="phone" type="tel" required autocomplete="tel" placeholder="+919876543210"></div>`, async f => { const result=await api('/api/conversations',{method:'POST',body:JSON.stringify({name:f.get('name'),phone:f.get('phone'),from_number:state.connection.numbers?.[0]?.phone_number})}); const existing=state.conversations.find(c=>c.id===result.conversation.id); if(existing)Object.assign(existing,result.conversation);else state.conversations.unshift(result.conversation); state.messages[result.conversation.id] ||= []; await selectConversation(result.conversation.id); if(state.templates.some(t=>t.status==='APPROVED'))showTemplates(); }); }
 function clearAttachment(){state.attachment=null;$('#attachmentPreview').classList.add('hidden')}
 
+async function createStarterTemplates() {
+  const connectionId = state.connection.connections?.[0]?.connection_id;
+  if (!connectionId) return toast('Connect a WhatsApp Business Account before creating templates.', true);
+  const button = $('#createTemplatePack');
+  button.disabled = true; button.textContent = 'Submitting…';
+  try {
+    const result = await api('/api/templates/starter-pack', { method:'POST', body:JSON.stringify({ connection_id:connectionId }) });
+    const created = result.results.filter(item=>item.ok).length;
+    const failed = result.results.length - created;
+    toast(`${created} templates submitted to Meta${failed ? `; ${failed} failed` : ''}.`, Boolean(failed));
+    const fresh = await api('/api/bootstrap'); state.templates = fresh.templates; state.connection = fresh.connection; renderPage('templates');
+  } catch(error) { toast(error.message, true); button.disabled = false; button.textContent = 'Create starter pack'; }
+}
+
 function renderPage(view) {
   $$('.rail-button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   if (view === 'chats') { $('#chatPanel').innerHTML = chatOriginal; bindChat(); renderChat(); return; }
   const title = view === 'templates' ? 'Message templates' : 'WhatsApp settings';
-  $('#chatPanel').innerHTML = `<div class="page-content"><h2>${title}</h2><p>${view==='templates'?'Approved templates can start or reopen conversations.':'Connection and webhook status for this inbox.'}</p>${view==='templates' ? state.templates.map(t=>`<div class="template-card"><div class="template-card-top"><b>${esc(t.name)}</b><span class="status">${esc(t.status)}</span></div><div class="template-body">${esc(t.body || `${t.category} · ${t.language}`)}</div></div>`).join('') : `<div class="settings-block"><h3>AgentPhone connection</h3><p><span class="connection-pill ${state.connection.connected?'':'offline'}">● ${state.connection.connected?'Connected':'Not connected'}</span></p><p style="margin-top:12px">${state.config.demoMode?'Demo mode is active. Add AGENTPHONE_API_KEY to .env and restart the server.':`Connected numbers: ${esc(state.connection.numbers?.map(n=>n.phone_number).join(', ') || 'none')}`}</p></div><div class="settings-block"><h3>Inbound webhook</h3><p>Point AgentPhone at this HTTPS endpoint. Use the configured secret as a query parameter or Bearer token.</p><div class="code">${location.origin}/api/webhooks/agentphone?secret=YOUR_SECRET</div></div>`}</div>`;
+  $('#chatPanel').innerHTML = `<div class="page-content"><div class="page-title-row"><div><h2>${title}</h2><p>${view==='templates'?'Approved templates can start or reopen conversations.':'Connection and webhook status for this inbox.'}</p></div>${view==='templates'?'<button class="primary" id="createTemplatePack">Create starter pack</button>':''}</div>${view==='templates' ? `<h3 class="section-label">Your Meta templates</h3>${state.templates.length ? state.templates.map(t=>`<div class="template-card"><div class="template-card-top"><b>${esc(t.name)}</b><span class="status">${esc(t.status)}</span></div><div class="template-body">${esc(t.body || t.components?.find(c=>c.type==='BODY')?.text || `${t.category} · ${t.language}`)}</div></div>`).join('') : '<div class="settings-block"><p>No templates have been returned by Meta yet.</p></div>'}<h3 class="section-label">Professional starter pack</h3>${starterTemplates.map(t=>`<div class="template-card starter"><div class="template-card-top"><b>${esc(t.name)}</b><span class="status draft">${esc(t.category)}</span></div><div class="template-body">${esc(t.body)}</div></div>`).join('')}` : `<div class="settings-block"><h3>AgentPhone connection</h3><p><span class="connection-pill ${state.connection.connected?'':'offline'}">● ${state.connection.connected?'Connected':'Not connected'}</span></p><p style="margin-top:12px">${state.config.demoMode?'Demo mode is active. Add AGENTPHONE_API_KEY to .env and restart the server.':`Connected numbers: ${esc(state.connection.numbers?.map(n=>n.phone_number).join(', ') || 'none')}`}</p></div><div class="settings-block"><h3>Inbound webhook</h3><p>Point AgentPhone at this HTTPS endpoint. Use the configured secret as a query parameter or Bearer token.</p><div class="code">${location.origin}/api/webhooks/agentphone?secret=YOUR_SECRET</div></div>`}</div>`;
+  if(view==='templates') $('#createTemplatePack').onclick=createStarterTemplates;
 }
 
 let chatOriginal = $('#chatPanel').innerHTML;

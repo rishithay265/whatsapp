@@ -45,5 +45,8 @@ The webhook also accepts `Authorization: Bearer YOUR_SECRET`. The supplied Agent
 - `POST /api/messages/:id/reactions` reacts to a message.
 - `POST /api/webhooks/agentphone` receives AgentPhone `agent.message` events.
 - `GET|POST|DELETE /api/templates` manages WhatsApp templates.
+- `GET|POST /api/templates/starter-pack` previews or submits the professional starter pack for Meta review.
+
+The starter pack contains four utility templates (`order_confirmation`, `appointment_reminder`, `payment_confirmation`, and `support_follow_up`) plus one marketing template (`welcome_updates`). Meta must approve a template before it can be sent.
 
 Conversation history is stored in `.data/store.json`. For multiple server instances, replace the file store and SSE fan-out with a shared database and pub/sub service.

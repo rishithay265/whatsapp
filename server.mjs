@@ -146,6 +146,7 @@ async function handler(req, res) {
         try {
           const remote = await agentphone('/integrations/whatsapp/status');
           connection = { ...remote, demo: false, numbers: remote.connections?.flatMap(c => c.numbers || []) || [] };
+          store.connection = connection;
           const connectionId = remote.connections?.[0]?.connection_id;
           if (connectionId) {
             try {
@@ -193,7 +194,10 @@ async function handler(req, res) {
       const conversation = store.conversations.find(c => c.id === input.conversationId) || conversationFor(input.to_number, input.from_number);
       const isTemplate = Boolean(input.template);
       if (!isTemplate && !canSend(conversation)) return json(res, 422, { error: 'The 24-hour WhatsApp window is closed. Send an approved template.' });
-      const payload = { from_number: input.from_number, to_number: conversation.phone, channel: 'whatsapp', body: input.body ?? '' };
+      const connectedNumber = store.connection?.numbers?.[0]?.phone_number;
+      const rawFromNumber = input.from_number || conversation.fromNumber || connectedNumber;
+      if (!rawFromNumber) return json(res, 400, { error: 'No connected WhatsApp sender number was found. Reconnect WhatsApp in AgentPhone, then refresh this app.' });
+      const payload = { from_number: normalizePhone(rawFromNumber), to_number: normalizePhone(conversation.phone), channel: 'whatsapp', body: input.body ?? '' };
       for (const key of ['media_urls', 'reply_to_message_id', 'buttons', 'list', 'cta', 'template']) if (input[key] != null) payload[key] = input[key];
       const remote = await agentphone('/v1/messages', { method: 'POST', body: JSON.stringify(payload) });
       const message = { id: remote?.id || remote?.data?.id || randomUUID(), direction: 'outbound', createdAt: now(), status: demoMode ? 'sent' : 'queued', ...payload };

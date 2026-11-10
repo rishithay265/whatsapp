@@ -45,16 +45,18 @@ function renderConversations() {
 }
 
 function renderChat() {
+  const header = $('#chatHeader'), messageList = $('#messages');
+  if (!header || !messageList) return;
   const c = selected();
-  if (!c) { $('#chatHeader').innerHTML = ''; $('#messages').innerHTML = '<div class="empty-state"><div><h2>Select a conversation</h2><p>Your WhatsApp messages will appear here.</p></div></div>'; return; }
-  $('#chatHeader').innerHTML = `<div class="contact"><span class="avatar" style="background:${c.color}">${esc(c.avatar)}</span><div><h2>${esc(c.name)}</h2><p><span class="online-dot"></span>${esc(c.phone)} · WhatsApp</p></div></div><div class="header-actions"><button class="header-action" title="Search messages"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button><button class="header-action" title="Conversation details"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button></div>`;
+  if (!c) { header.innerHTML = ''; messageList.innerHTML = '<div class="empty-state"><div><h2>Select a conversation</h2><p>Your WhatsApp messages will appear here.</p></div></div>'; return; }
+  header.innerHTML = `<div class="contact"><span class="avatar" style="background:${c.color}">${esc(c.avatar)}</span><div><h2>${esc(c.name)}</h2><p><span class="online-dot"></span>${esc(c.phone)} · WhatsApp</p></div></div><div class="header-actions"><button class="header-action" title="Search messages"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button><button class="header-action" title="Conversation details"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button></div>`;
   const open = windowOpen(c), expires = c.windowExpiresAt && new Date(c.windowExpiresAt);
   $('#windowBanner').classList.toggle('visible', !open);
   $('#windowBanner').innerHTML = open ? '' : 'The 24-hour window is closed. Use an approved template to send a message.';
   $('#messageInput').disabled = !open; $('#messageInput').placeholder = open ? 'Write a message' : 'Use a template to continue';
   const list = state.messages[c.id] || [];
-  $('#messages').innerHTML = `<div class="day-divider">${open && expires ? `Window open until ${time(expires)}` : 'Conversation'}</div>` + list.map(messageHTML).join('');
-  $('#messages').scrollTop = $('#messages').scrollHeight;
+  messageList.innerHTML = `<div class="day-divider">${open && expires ? `Window open until ${time(expires)}` : 'Conversation'}</div>` + list.map(messageHTML).join('');
+  messageList.scrollTop = messageList.scrollHeight;
   $$('.reply-action').forEach(btn => btn.onclick = () => setReply(btn.dataset.id));
   $$('.react-action').forEach(btn => btn.onclick = () => react(btn.dataset.id));
   $('#chatPanel').classList.add('mobile-open');
@@ -74,7 +76,13 @@ function messageHTML(m) {
 }
 function findMessage(id) { for (const list of Object.values(state.messages)) { const m = list.find(x => x.id === id); if (m) return m; } return null; }
 async function selectConversation(id) {
-  state.selectedId = id; renderConversations(); renderChat();
+  state.selectedId = id; renderConversations();
+  if (!$('#chatHeader')) {
+    $('#chatPanel').innerHTML = chatOriginal;
+    bindChat();
+    $$('.rail-button').forEach(button => button.classList.toggle('active', button.dataset.view === 'chats'));
+  }
+  renderChat();
   const c = selected(); if (c?.unread) { c.unread = 0; try { await api('/api/conversations/read', { method:'POST', body:JSON.stringify({ id }) }); } catch {} renderConversations(); }
 }
 function setReply(id) { state.replyTo = findMessage(id); $('#replyPreview').classList.remove('hidden'); $('#replyPreview').innerHTML = `<span>Replying to: ${esc(state.replyTo.body).slice(0,100)}</span><button class="secondary" id="cancelReply">Cancel</button>`; $('#cancelReply').onclick = clearReply; $('#messageInput').focus(); }

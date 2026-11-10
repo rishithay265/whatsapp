@@ -97,6 +97,9 @@ function normalizePhone(value) {
   }
   return phone;
 }
+function isReservedMetaTestNumber(phone) {
+  return /^\+1555\d{7}$/.test(phone);
+}
 function initials(name) {
   return String(name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 }
@@ -197,7 +200,11 @@ async function handler(req, res) {
       const connectedNumber = store.connection?.numbers?.[0]?.phone_number;
       const rawFromNumber = input.from_number || conversation.fromNumber || connectedNumber;
       if (!rawFromNumber) return json(res, 400, { error: 'No connected WhatsApp sender number was found. Reconnect WhatsApp in AgentPhone, then refresh this app.' });
-      const payload = { from_number: normalizePhone(rawFromNumber), to_number: normalizePhone(conversation.phone), channel: 'whatsapp', body: input.body ?? '' };
+      const fromNumber = normalizePhone(rawFromNumber);
+      if (isReservedMetaTestNumber(fromNumber)) {
+        return json(res, 422, { error: 'The connected sender is a Meta +1 555 test number, which AgentPhone rejects as a valid E.164 sender. Add a real eligible phone number in AgentPhone → WhatsApp and configure Meta billing before sending.' });
+      }
+      const payload = { from_number: fromNumber, to_number: normalizePhone(conversation.phone), channel: 'whatsapp', body: input.body ?? '' };
       for (const key of ['media_urls', 'reply_to_message_id', 'buttons', 'list', 'cta', 'template']) if (input[key] != null) payload[key] = input[key];
       const remote = await agentphone('/v1/messages', { method: 'POST', body: JSON.stringify(payload) });
       const message = { id: remote?.id || remote?.data?.id || randomUUID(), direction: 'outbound', createdAt: now(), status: demoMode ? 'sent' : 'queued', ...payload };

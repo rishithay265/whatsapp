@@ -17,7 +17,7 @@ function relative(value) {
   return new Intl.DateTimeFormat([], { month:'short', day:'numeric' }).format(new Date(value));
 }
 function selected() { return state.conversations.find(c => c.id === state.selectedId); }
-function windowOpen(c) { return !c?.windowExpiresAt || new Date(c.windowExpiresAt).getTime() > Date.now(); }
+function windowOpen(c) { return Boolean(c?.windowExpiresAt) && new Date(c.windowExpiresAt).getTime() > Date.now(); }
 function toast(message, error = false) {
   const el = document.createElement('div'); el.className = `toast${error ? ' error' : ''}`; el.textContent = message; $('#toasts').append(el); setTimeout(() => el.remove(), 3200);
 }
@@ -90,7 +90,7 @@ async function send(payload = {}) {
 
 function modal(title, subtitle, content, onSubmit) {
   $('#modalContent').innerHTML = `<h2>${title}</h2><p class="sub">${subtitle}</p><form id="modalForm">${content}<div class="modal-footer"><button class="secondary" type="button" id="modalCancel">Cancel</button><button class="primary">Continue</button></div></form>`;
-  $('#modalBackdrop').classList.remove('hidden'); $('#modalCancel').onclick = closeModal; $('#modalForm').onsubmit = async e => { e.preventDefault(); await onSubmit(new FormData(e.currentTarget)); closeModal(); };
+  $('#modalBackdrop').classList.remove('hidden'); $('#modalCancel').onclick = closeModal; $('#modalForm').onsubmit = async e => { e.preventDefault(); try { await onSubmit(new FormData(e.currentTarget)); closeModal(); } catch(error) { toast(error.message, true); } };
 }
 function closeModal() { $('#modalBackdrop').classList.add('hidden'); }
 function showInteractive(kind) {
@@ -102,9 +102,10 @@ function showInteractive(kind) {
 }
 function showTemplates() {
   const approved = state.templates.filter(t => t.status === 'APPROVED');
+  if (!approved.length) return toast('No approved WhatsApp templates are available for this account.', true);
   modal('Send a template','Approved templates work even after the 24-hour window closes.',`<div class="field"><label>Template</label><select name="template">${approved.map(t=>`<option value="${esc(t.name)}">${esc(t.name)} · ${esc(t.language)}</option>`).join('')}</select></div><div class="field"><label>Variables, comma separated</label><input name="variables" placeholder="1234, Tuesday"></div>`, f => { const t = approved.find(x=>x.name===f.get('template')); return send({ body:'', template:{ name:t.name, language:t.language, variables:String(f.get('variables')).split(',').map(x=>x.trim()).filter(Boolean) } }); });
 }
-function newChat() { modal('Start a conversation','Outside the 24-hour window, the first message must be a template.',`<div class="field"><label>Name</label><input name="name" required placeholder="Customer name"></div><div class="field"><label>WhatsApp number</label><input name="phone" required placeholder="+91 98765 43210"></div><div class="field"><label>Approved template</label><select name="template">${state.templates.filter(t=>t.status==='APPROVED').map(t=>`<option>${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Variables, comma separated</label><input name="variables" placeholder="1234"></div>`, async f => { const name=f.get('name'), phone=f.get('phone'), t=state.templates.find(x=>x.name===f.get('template')); const result=await api('/api/messages',{method:'POST',body:JSON.stringify({to_number:phone,from_number:state.connection.numbers?.[0]?.phone_number,body:'',template:{name:t.name,language:t.language,variables:String(f.get('variables')).split(',').map(x=>x.trim()).filter(Boolean)}})}); result.conversation.name=name; state.conversations.unshift(result.conversation); state.messages[result.conversation.id]=[result.message]; await selectConversation(result.conversation.id); }); }
+function newChat() { modal('Add WhatsApp contact','Use the full international number with its country code. The contact will open as a blank conversation.',`<div class="field"><label>Contact name</label><input name="name" required maxlength="80" autocomplete="name" placeholder="Customer name"></div><div class="field"><label>WhatsApp number</label><input name="phone" type="tel" required autocomplete="tel" placeholder="+919876543210"></div>`, async f => { const result=await api('/api/conversations',{method:'POST',body:JSON.stringify({name:f.get('name'),phone:f.get('phone'),from_number:state.connection.numbers?.[0]?.phone_number})}); const existing=state.conversations.find(c=>c.id===result.conversation.id); if(existing)Object.assign(existing,result.conversation);else state.conversations.unshift(result.conversation); state.messages[result.conversation.id] ||= []; await selectConversation(result.conversation.id); if(state.templates.some(t=>t.status==='APPROVED'))showTemplates(); }); }
 function clearAttachment(){state.attachment=null;$('#attachmentPreview').classList.add('hidden')}
 
 function renderPage(view) {

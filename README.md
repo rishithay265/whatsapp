@@ -10,7 +10,7 @@ cp .env.example .env
 npm start
 ```
 
-Open `http://localhost:4173`. If `AGENTPHONE_API_KEY` is missing or still contains `replace_me`, the app starts in demo mode with seeded conversations and simulated replies.
+Open `http://localhost:4173`. If `AGENTPHONE_API_KEY` is missing or still contains `replace_me`, the app starts disconnected with an empty inbox. No sample contacts or messages are created.
 
 ## Deploy on Vercel
 
@@ -39,6 +39,7 @@ The webhook also accepts `Authorization: Bearer YOUR_SECRET`. The supplied Agent
 ## API routes
 
 - `GET /api/bootstrap` returns connection state, conversations, templates, and configuration.
+- `POST /api/conversations` adds a contact using an E.164 WhatsApp number.
 - `GET /api/events` streams live changes.
 - `POST /api/messages` sends a message through AgentPhone and records it locally.
 - `POST /api/messages/:id/reactions` reacts to a message.

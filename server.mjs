@@ -20,37 +20,23 @@ const now = () => new Date().toISOString();
 const hoursFromNow = (hours) => new Date(Date.now() + hours * 3600e3).toISOString();
 
 const seed = {
-  connection: { connected: true, enabled: true, demo: true, numbers: [{ id: 'demo-number', phone_number: '+91 98765 43210', agent_id: 'demo-agent' }] },
-  conversations: [
-    { id: 'ananya', name: 'Ananya Rao', phone: '+91 99887 71204', avatar: 'AR', color: '#c6a6e8', unread: 2, lastMessage: 'Can you share the tracking link?', updatedAt: new Date(Date.now() - 4 * 60e3).toISOString(), windowExpiresAt: hoursFromNow(21), pinned: true },
-    { id: 'rohan', name: 'Rohan Mehta', phone: '+91 98110 44028', avatar: 'RM', color: '#8fcbd2', unread: 0, lastMessage: 'Perfect, thank you!', updatedAt: new Date(Date.now() - 42 * 60e3).toISOString(), windowExpiresAt: hoursFromNow(8) },
-    { id: 'meera', name: 'Meera Iyer', phone: '+91 94440 71255', avatar: 'MI', color: '#e7b287', unread: 0, lastMessage: 'I need to reschedule.', updatedAt: new Date(Date.now() - 3 * 3600e3).toISOString(), windowExpiresAt: hoursFromNow(-2) },
-    { id: 'arjun', name: 'Arjun Nair', phone: '+91 98470 55019', avatar: 'AN', color: '#96b8ec', unread: 0, lastMessage: 'The blue one looks good.', updatedAt: new Date(Date.now() - 25 * 3600e3).toISOString(), windowExpiresAt: hoursFromNow(-1) }
-  ],
-  messages: {
-    ananya: [
-      { id: 'm-a1', direction: 'inbound', body: 'Hi! Is my order on the way?', createdAt: new Date(Date.now() - 13 * 60e3).toISOString(), status: 'read' },
-      { id: 'm-a2', direction: 'outbound', body: 'Hi Ananya, yes. It left our warehouse this morning.', createdAt: new Date(Date.now() - 10 * 60e3).toISOString(), status: 'read' },
-      { id: 'm-a3', direction: 'inbound', body: 'Can you share the tracking link?', createdAt: new Date(Date.now() - 4 * 60e3).toISOString(), status: 'delivered' }
-    ],
-    rohan: [
-      { id: 'm-r1', direction: 'outbound', body: 'Your appointment is confirmed for tomorrow at 3:30 PM.', buttons: ['Confirm', 'Reschedule', 'Cancel'], createdAt: new Date(Date.now() - 50 * 60e3).toISOString(), status: 'read' },
-      { id: 'm-r2', direction: 'inbound', body: 'Confirm', replyTo: { messageId: 'm-r1', message: 'Your appointment is confirmed for tomorrow at 3:30 PM.' }, createdAt: new Date(Date.now() - 45 * 60e3).toISOString() },
-      { id: 'm-r3', direction: 'outbound', body: 'Perfect, thank you!', createdAt: new Date(Date.now() - 42 * 60e3).toISOString(), status: 'read', reaction: '❤️' }
-    ],
-    meera: [{ id: 'm-m1', direction: 'inbound', body: 'I need to reschedule.', createdAt: new Date(Date.now() - 27 * 3600e3).toISOString() }],
-    arjun: [{ id: 'm-j1', direction: 'inbound', body: 'The blue one looks good.', createdAt: new Date(Date.now() - 49 * 3600e3).toISOString() }]
-  },
-  templates: [
-    { id: 't1', name: 'order_shipped', language: 'en_US', category: 'UTILITY', status: 'APPROVED', body: 'Your order {{1}} has shipped.' },
-    { id: 't2', name: 'appointment_reminder', language: 'en_US', category: 'UTILITY', status: 'APPROVED', body: 'Reminder: your appointment is on {{1}} at {{2}}.' }
-  ]
+  schemaVersion: 2,
+  connection: { connected: false, enabled: false, demo: true, numbers: [] },
+  conversations: [],
+  messages: {},
+  templates: []
 };
 
 let store;
 async function loadStore() {
   await mkdir(DATA_DIR, { recursive: true });
-  try { store = JSON.parse(await readFile(STORE_FILE, 'utf8')); }
+  try {
+    store = JSON.parse(await readFile(STORE_FILE, 'utf8'));
+    if (store.schemaVersion !== seed.schemaVersion) {
+      store = structuredClone(seed);
+      await saveStore();
+    }
+  }
   catch { store = structuredClone(seed); await saveStore(); }
 }
 async function saveStore() { await writeFile(STORE_FILE, JSON.stringify(store, null, 2)); }
@@ -96,6 +82,16 @@ function conversationFor(phone, fromNumber) {
   }
   return conversation;
 }
+function normalizePhone(value) {
+  const phone = String(value || '').trim().replace(/[\s().-]/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    throw Object.assign(new Error('Enter a valid international number, including the country code, such as +919876543210.'), { status: 400 });
+  }
+  return phone;
+}
+function initials(name) {
+  return String(name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+}
 function recordMessage(conversation, message) {
   store.messages[conversation.id] ||= [];
   store.messages[conversation.id].push(message);
@@ -106,7 +102,7 @@ function recordMessage(conversation, message) {
     conversation.windowExpiresAt = hoursFromNow(24);
   }
 }
-function canSend(conversation) { return !conversation.windowExpiresAt || new Date(conversation.windowExpiresAt).getTime() > Date.now(); }
+function canSend(conversation) { return Boolean(conversation.windowExpiresAt) && new Date(conversation.windowExpiresAt).getTime() > Date.now(); }
 
 async function serveStatic(req, res, pathname) {
   let requested = pathname === '/' ? '/index.html' : pathname;
@@ -137,13 +133,46 @@ async function handler(req, res) {
     }
     if (p === '/api/bootstrap' && req.method === 'GET') {
       let connection = store.connection;
+      let templates = store.templates;
       if (!demoMode) {
         try {
           const remote = await agentphone('/integrations/whatsapp/status');
           connection = { ...remote, demo: false, numbers: remote.connections?.flatMap(c => c.numbers || []) || [] };
+          const connectionId = remote.connections?.[0]?.connection_id;
+          if (connectionId) {
+            try {
+              const result = await agentphone(`/integrations/whatsapp/${encodeURIComponent(connectionId)}/templates?status=APPROVED`);
+              templates = Array.isArray(result) ? result : (result.templates || result.data || []);
+              store.templates = templates;
+            } catch (error) {
+              console.error('Unable to load WhatsApp templates:', error.message);
+            }
+          }
         } catch (error) { connection = { connected: false, enabled: false, demo: false, error: error.message, numbers: [] }; }
       }
-      return json(res, 200, { connection, conversations: store.conversations, messages: store.messages, templates: store.templates, config: { demoMode } });
+      return json(res, 200, { connection, conversations: store.conversations, messages: store.messages, templates, config: { demoMode } });
+    }
+    if (p === '/api/conversations' && req.method === 'POST') {
+      const input = await body(req);
+      const name = String(input.name || '').trim();
+      if (!name) return json(res, 400, { error: 'Contact name is required.' });
+      const phone = normalizePhone(input.phone);
+      let conversation = store.conversations.find(c => c.phone === phone);
+      if (conversation) {
+        conversation.name = name;
+        conversation.avatar = initials(name);
+      } else {
+        conversation = {
+          id: randomUUID(), name, phone, fromNumber: input.from_number || null,
+          avatar: initials(name), color: '#b9d5cd', unread: 0, lastMessage: '',
+          updatedAt: now(), windowExpiresAt: null
+        };
+        store.conversations.unshift(conversation);
+        store.messages[conversation.id] = [];
+      }
+      await saveStore();
+      emit('conversation', conversation);
+      return json(res, 201, { conversation });
     }
     if (p === '/api/conversations/read' && req.method === 'POST') {
       const input = await body(req);
@@ -163,11 +192,6 @@ async function handler(req, res) {
       recordMessage(conversation, message);
       await saveStore();
       emit('message', { conversation, message });
-      if (demoMode) setTimeout(async () => {
-        const replies = ['Got it, thanks!', 'Yes, that works for me.', 'Can you share a few more details?', 'Perfect.'];
-        const reply = { id: randomUUID(), direction: 'inbound', body: replies[Math.floor(Math.random() * replies.length)], createdAt: now(), status: 'delivered' };
-        recordMessage(conversation, reply); await saveStore(); emit('message', { conversation, message: reply });
-      }, 1400);
       return json(res, 201, { conversation, message });
     }
     const reactionMatch = p.match(/^\/api\/messages\/([^/]+)\/reactions$/);

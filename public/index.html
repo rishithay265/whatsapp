@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a2723">
+  <title>WhatsApp Inbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Primary navigation">
+      <div class="brand-mark" aria-label="Waive"><span></span></div>
+      <nav>
+        <button class="rail-button active" data-view="chats" aria-label="Chats"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9.7 9.7 0 0 1-3.8-.8L3 21l1.6-4.6A8.4 8.4 0 0 1 3 11.5a8.4 8.4 0 0 1 9-8.5 8.4 8.4 0 0 1 9 8.5Z"/></svg><span>Chats</span></button>
+        <button class="rail-button" data-view="templates" aria-label="Templates"><svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm3 5h8M8 12h8M8 16h5"/></svg><span>Templates</span></button>
+      </nav>
+      <button class="rail-button rail-bottom" data-view="settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm8-3.2 1.4-1.1-1.8-3.1-1.7.7a7 7 0 0 0-1.6-.9L16 5.8h-3.6l-.3 1.8a7 7 0 0 0-1.6.9l-1.7-.7L7 10.9 8.4 12a7 7 0 0 0 0 1.8L7 14.9 8.8 18l1.7-.7a7 7 0 0 0 1.6.9l.3 1.8H16l.3-1.8a7 7 0 0 0 1.6-.9l1.7.7 1.8-3.1-1.4-1.1a7 7 0 0 0 0-1.8Z"/></svg><span>Settings</span></button>
+    </aside>
+
+    <section class="inbox-panel">
+      <header class="inbox-header">
+        <div><p class="eyebrow">Inbox</p><h1>Messages</h1></div>
+        <button class="icon-button dark" id="newChat" aria-label="New conversation">+</button>
+      </header>
+      <div class="search-wrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"><kbd>⌘ K</kbd></div>
+      <div class="filter-row"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="unread">Unread</button><button class="filter" data-filter="open">Open window</button></div>
+      <div class="conversation-list" id="conversationList"></div>
+    </section>
+
+    <main class="chat-panel" id="chatPanel">
+      <header class="chat-header" id="chatHeader"></header>
+      <div class="window-banner" id="windowBanner"></div>
+      <section class="messages" id="messages" aria-live="polite"></section>
+      <div class="reply-preview hidden" id="replyPreview"></div>
+      <div class="attachment-preview hidden" id="attachmentPreview"></div>
+      <form class="composer" id="composer">
+        <button class="composer-tool" type="button" id="attachBtn" aria-label="Add attachment">+</button>
+        <div class="input-shell"><textarea id="messageInput" rows="1" placeholder="Write a message" aria-label="Message"></textarea><button class="smile" type="button" aria-label="Emoji">☺</button></div>
+        <button class="composer-tool magic" type="button" id="moreBtn" aria-label="Interactive messages">✦</button>
+        <button class="send-button" id="sendButton" aria-label="Send message"><svg viewBox="0 0 24 24"><path d="m3 11 18-8-8 18-2-7-8-3Zm8 3 4-4"/></svg></button>
+      </form>
+    </main>
+  </div>
+
+  <div class="popover hidden" id="morePopover">
+    <button data-kind="buttons"><span>▣</span><div><b>Reply buttons</b><small>Up to three quick choices</small></div></button>
+    <button data-kind="list"><span>☷</span><div><b>List menu</b><small>Up to ten options</small></div></button>
+    <button data-kind="cta"><span>↗</span><div><b>Link button</b><small>Open a URL from the message</small></div></button>
+    <button data-kind="template"><span>◇</span><div><b>Template</b><small>Message outside the 24-hour window</small></div></button>
+  </div>
+  <div class="modal-backdrop hidden" id="modalBackdrop"><div class="modal" role="dialog" aria-modal="true"><button class="modal-close" id="modalClose" aria-label="Close">×</button><div id="modalContent"></div></div></div>
+  <div class="toast-region" id="toasts" aria-live="polite"></div>
+  <input id="fileInput" type="file" accept="image/*,video/*,audio/*,.pdf" hidden>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
